@@ -4,18 +4,15 @@
 /*
     This is mostly a copy of the hover code in GIT
     https://raw.githubusercontent.com/hoverlabs/hover_particle/master/examples/HoverSonos/HoverSonos.ino
-	
 	The rest is from some code i was using to control hue lights, so there may be some cruft and oddly named stuff in here
-
 */
-
 // You need to add your sonos' IP address here
-// for eg
-// byte sonosip[] = { 192, 168, 1, 230 };
-byte sonosip[] = { z, y, x, w };
+byte sonosip[] = { 192, 168, 1, 230 };
  
 //#define SONOS_PAUSE "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:Pause xmlns:u=\"urn:schemas-upnp-org:service:AVTransport:1\"><InstanceID>0</InstanceID></u:Pause></s:Body></s:Envelope>\r\n"
 //#define SONOS_PLAY  "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body><u:Play xmlns:u=\"urn:schemas-upnp-org:service:AVTransport:1\"><InstanceID>0</InstanceID><Speed>1</Speed></u:Play></s:Body></s:Envelope>\r\n"
+
+// SONOS SETTINGS
 
 #define SOAP_HEADER "<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\"><s:Body>"
 #define SOAP_FOOTER "</s:Body></s:Envelope>\r\n"
@@ -36,9 +33,17 @@ byte sonosip[] = { z, y, x, w };
 #define VOLUME 4
 #define TRANSPORTINFO 5
 #define GETVOLUME 6
+// END SONOS
+
+// HUE SETTINGS
+
+// END HUE
 
 
-TCPClient client;
+
+TCPClient sClient;
+//TCPClient hClient;
+
 unsigned long timeout;
 int sonosVolume;
 char songTitle[32];
@@ -46,20 +51,35 @@ char songArtist[32];
 char songVolume[12];
 //char songAlbum[32];
 
+
 // used when printing 3D position coordinates. Using a smaller interval will result in a 'spammy' console. Set to update every 150ms by default.  
 long interval = 150;        
 long previousMillis = 0;
 
 
-// really we should only need one button - check if sonos is playing, if so pause, else play (or similar)
-int onButton = D1; // The pin the play button is on
-int offButton = D2; // The pin the pause buttons is on
-int LED = D7;
+//jt added
+int8_t pl16 = D0;
+int8_t plMS = D1;
+int8_t plRK = D7;
+int8_t ofBu = D2;
+int8_t onBu = D3;
+int8_t hueL = D4;
+int8_t volU = D5;
+int8_t volD = D6;
+
+int8_t sonAct;
+
+int8_t sonStartVol = 7; // sonos start volume
+int8_t sonVolInc   = 2; // sonos volume change incremeent
 
 bool LEDnew = false;
 bool schange = false;
+bool huesonos = false;
 bool sonosPlay;
-
+bool oldHue;
+bool newHue;
+bool huestate;
+// end jt added
 
 
 void setup()
@@ -68,14 +88,21 @@ void setup()
     
     // jt added 
     delay(1000);
-    
-    pinMode(LED, OUTPUT);
-    pinMode(onButton, INPUT_PULLUP); 
-    pinMode(offButton, INPUT_PULLUP); 
-    digitalWrite(LED, HIGH);
+
+//     pinMode(pl16, INPUT_PULLUP);
+    pinMode(pl16, INPUT_PULLDOWN);
+    pinMode(plMS, INPUT_PULLDOWN);
+    pinMode(plRK, INPUT_PULLDOWN);
+    pinMode(onBu, INPUT_PULLDOWN);
+    pinMode(ofBu, INPUT_PULLDOWN);
+    pinMode(hueL, INPUT_PULLDOWN);
+    pinMode(volU, INPUT_PULLDOWN);
+    pinMode(volD, INPUT_PULLDOWN);
     delay(1000);
-    digitalWrite(LED, LOW);
     
+    newHue = digitalRead(hueL);
+    oldHue = newHue;
+    sonosVolume=sonStartVol;
     // end jt added
     
     
@@ -85,29 +112,102 @@ void loop()
 {
     
   unsigned long currentMillis = millis();    // used for updating 3D position coordinates. Set to update every 150ms by default. 
-    while(digitalRead(onButton) == LOW) {
-        //Serial.println("onButton ==Low");
+    while(digitalRead(onBu) == HIGH) {
+        Serial.println("onButton ==high");
         schange = true;
         delay(500);
-        sonosPlay = true;
+        huesonos = false;
+        sonAct = 1;
     }
-    while(digitalRead(offButton) == LOW) {
-        //Serial.println("offButton ==Low");
+    while(digitalRead(ofBu) == HIGH) {
+        Serial.println("offButton ==high");
         schange = true;
         delay(500);
-        sonosPlay = false;
+        huesonos = false;
+        sonAct = 0;
     }
-    
-    
+    while(digitalRead(pl16) == HIGH) {
+        Serial.println("pl16 ==High");
+        schange = true;
+        delay(500);
+        huesonos = false;
+        sonAct = 0;
+        // ACTION
+    }
+    /*
+    pinMode(hueL, INPUT_PULLUP);
+    pinMode(volU, INPUT_PULLUP);
+    pinMode(volD, INPUT_PULLUP);
+    */
+    while(digitalRead(plMS) == HIGH) {
+        Serial.println("plMS ==High");
+        schange = true;
+        delay(500);
+        huesonos = false;
+        sonAct = 2;
+        // ACTION
+    }
+    while(digitalRead(plRK) == HIGH) {
+        Serial.println("plRK ==High");
+        schange = true;
+        delay(500);
+        huesonos = false;
+        sonAct = 3;
+        // ACTION
+    }
+    while(digitalRead(volU) == HIGH) {
+        Serial.println("volU ==High");
+        schange = true;
+        delay(500);
+        huesonos = false;
+        sonosVolume += sonVolInc;
+        sonAct = 4;
+        // ACTION
+    }
+    while(digitalRead(volD) == HIGH) {
+        Serial.println("volD ==High");
+        schange = true;
+        delay(500);
+        huesonos = false;
+        sonosVolume -= sonVolInc;
+        sonAct = 4;
+        // ACTION
+    }
+    newHue = digitalRead(hueL);
+    if (newHue != oldHue){
+        Serial.println("hueL change");
+        huesonos = true;
+        
+        // switch the lights
+        schange = true;
+        oldHue = newHue;
+        
+        // huestate != huestate;
+        if (huestate) {
+            huestate = false;
+            Serial.println("huestate false now");
+        } else {
+            huestate = true;
+            Serial.println("huesstate true now");
+        }
+        Serial.println(huestate);
+        delay(500);
+    }
+        
     if (schange){
         Serial.println("going schange == true");
-        LEDnew = !LEDnew;
         schange = false;
-        if (sonosPlay) { 
-            sonos(1); //("PLAY");
+        if (huesonos) { 
+            // Chnage light state
         }
         else {
-            sonos(0); //("Pause");
+            if (sonAct==1){
+                // set a low starting volumne, just in case...
+                // ideally I'd wait for x minutes to pass, if < timeout just play, else set the volume low and play
+                sonosVolume=5;
+                sonos(4);
+            }
+            sonos(sonAct); //("Pause");
         }
         delay(1000);
         //lMillis = millis();
@@ -118,9 +218,9 @@ void loop()
 
 
 
-void out(const char *s)
+void sOut(const char *s)
 {
-    client.write( (const uint8_t*)s, strlen(s) );
+    sClient.write( (const uint8_t*)s, strlen(s) );
     Serial.println(s);
 }
 
@@ -133,9 +233,9 @@ void sonos(int cmd)
   char soapmsg[1024];
   char cmdtag[20];
    
-  sonosVolume = 35;
+  //sonosVolume = 35;
   
-  if (client.connect(sonosip, 1400)) {
+  if (sClient.connect(sonosip, 1400)) {
     Serial.println("client is connected successfully");
 
     switch (cmd) {
@@ -170,38 +270,38 @@ void sonos(int cmd)
     }
     
     if (String(cmdtag) == "SetVolume" || String(cmdtag) == "GetVolume") {
-        out("POST /MediaRenderer/RenderingControl/Control HTTP/1.1\r\n");
+        sOut("POST /MediaRenderer/RenderingControl/Control HTTP/1.1\r\n");
     } else {
-        out("POST /MediaRenderer/AVTransport/Control HTTP/1.1\r\n");
+        sOut("POST /MediaRenderer/AVTransport/Control HTTP/1.1\r\n");
     }
 
     sprintf(buf, "Host: %d.%d.%d.%d:1400\r\n", sonosip[0], sonosip[1], sonosip[2], sonosip[3]);
-    out(buf);
+    sOut(buf);
     sprintf(buf, "Content-Length: %d\r\n", strlen(soapmsg));
-    out(buf);
-    out("Content-Type: text/xml; charset=\"utf-8\"\r\n");
+    sOut(buf);
+    sOut("Content-Type: text/xml; charset=\"utf-8\"\r\n");
     
     if (String(cmdtag) == "SetVolume" || String(cmdtag) == "GetVolume") {
         sprintf(buf, "Soapaction: \"urn:schemas-upnp-org:service:RenderingControl:1#%s\"\r\n", cmdtag);
     } else {
         sprintf(buf, "Soapaction: \"urn:schemas-upnp-org:service:AVTransport:1#%s\"\r\n", cmdtag);
     }
-    out(buf);
+    sOut(buf);
 
-    out("\r\n");
-    out(soapmsg);
+    sOut("\r\n");
+    sOut(soapmsg);
 
     
     /*wait 1s for timeout*/
     timeout = millis();
-    while ((!client.available()) && ((millis() - timeout) < 1000));
+    while ((!sClient.available()) && ((millis() - timeout) < 1000));
 
 
 
     int i = 0;
     char sonosResponse[3072];
-    while (client.available()) {
-        char c = client.read();
+    while (sClient.available()) {
+        char c = sClient.read();
         Serial.print(c);
         
         if (String(cmdtag) == "GetPositionInfo" || String(cmdtag) == "GetVolume") {
@@ -239,18 +339,6 @@ void sonos(int cmd)
         songArtist[c] = '\0';
         Serial.println(songArtist);
 
-        /* Get the Album */
-        /*p1 = strcasestr(sonosResponse,";upnp:album&gt;");
-        p2 = strcasestr(sonosResponse,"&lt;/upnp:album&gt");
-        c = 0;
-        
-        for (p1 = p1 + 15; p1 != p2; p1++) {
-            songAlbum[c] = *p1;
-            c++;
-        }
-        songAlbum[c] = '\0';
-        Serial.println(songAlbum);*/
-
         
     } else if (String(cmdtag) == "GetVolume") {
         sonosResponse[i] = '\0';
@@ -271,9 +359,7 @@ void sonos(int cmd)
         
     }
     
-    //while (client.available()) client.read(); 
-    //delay(100);
-    client.stop();
+    sClient.stop();
 
     
   } else {
